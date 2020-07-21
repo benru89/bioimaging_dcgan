@@ -8,9 +8,10 @@ import data_processing as data
 import model
 import output
 import dcgan_alt as dcgan
+import matplotlib.pyplot as plt
 import latent_space
 from constants import (SEED, BATCH_SIZE, Z_NOISE_DIM, DIM_X, DIM_Y, DIM_Z, NUM_EPOCHS, Y_DIM,
-                       BASE_PATH, DATA_PATH, D_LEARNING_RATE, G_LEARNING_RATE, BETA1, OUTPUT_PATH,
+                       BASE_PATH, DATA_PATH, D_LEARNING_RATE, G_LEARNING_RATE, BETA1, OUTPUT_PATH,FULL_OUTPUT_PATH,
                        SAVE_MODEL_EVERY, PRINT_INFO_EVERY, CHKPTS_PATH, SAVE_EXAMPLE_EVERY, GRAPHS_PATH, WRITE_IMG_SUMMARY_EVERY)
 
 
@@ -62,8 +63,8 @@ def run():
         global_step, 1, name='increment_global_step')
 
     # Model
-    input_real, input_z, input_d_y, input_g_y = model.model_inputs(
-        DIM_X, DIM_Y, DIM_Z, Z_NOISE_DIM, Y_DIM)
+    input_real, input_z = model.model_inputs(
+        DIM_X, DIM_Y, DIM_Z, Z_NOISE_DIM)
     total_steps = (dataset_len / BATCH_SIZE) * NUM_EPOCHS
     starter_stdev = 0.1
 
@@ -76,7 +77,7 @@ def run():
     tf.summary.scalar("stdev", tf.keras.backend.std(
         decaying_noise), collections=["d_summ"])
     d_loss, g_loss = model.model_loss(
-        input_real, input_z, input_d_y, input_g_y, decaying_noise=decaying_noise)
+        input_real, input_z, decaying_noise=decaying_noise)
     d_train_opt, g_train_opt = model.model_opt(
         d_loss, g_loss, D_LEARNING_RATE, G_LEARNING_RATE, BETA1)
 
@@ -99,7 +100,7 @@ def run():
 
         if args.generate:
             output.generate_samples(
-                sess, z_batch_tensor, input_z, input_g_y, labels, args.generate,
+                sess, z_batch_tensor, input_z, args.generate,
                 save_tensor=args.save_tensors, name_prefix=args.out_prefix)
 
         elif args.image:
@@ -110,7 +111,7 @@ def run():
 
         else:
             train(sess, saver, z_batch_tensor, increment_global_step, dataset_len,
-                  iterator, input_real, input_z, input_d_y, input_g_y,
+                  iterator, input_real, input_z,
                   d_loss, g_loss, d_train_opt, g_train_opt)
 
 
@@ -127,7 +128,7 @@ def get_session(batch_size):
     # Model
     input_real, input_z, input_d_y, input_g_y = model.model_inputs(
         DIM_X, DIM_Y, DIM_Z, Z_NOISE_DIM, Y_DIM)
-    dcgan.generator(input_z, input_g_y)
+    dcgan.generator(input_z)
     global_step = tf.Variable(0, trainable=False, name='global_step')
     saver = tf.train.Saver(max_to_keep=10, keep_checkpoint_every_n_hours=5)
 
@@ -149,45 +150,47 @@ def close_session(sess):
     sess.close()
 
 
-def train(sess, saver, z_batch_tensor, increment_global_step, dataset_len, iterator, input_real, input_z, input_d_y, input_g_y, d_loss, g_loss, d_train_opt, g_train_opt):
+def train(sess, saver, z_batch_tensor, increment_global_step, dataset_len, iterator, input_real, input_z, d_loss, g_loss, d_train_opt, g_train_opt):
 
     next_batch = iterator.get_next()
 
     writer = tf.summary.FileWriter(BASE_PATH + GRAPHS_PATH, sess.graph)
     g_imgs = tf.summary.merge_all(key="g_imgs")
+    real_imgs = tf.summary.merge_all(key="real_imgs")
     g_summ = tf.summary.merge_all(key="g_summ")
     d_summ = tf.summary.merge_all(key="d_summ")
 
     while True:
         try:
             steps = sess.run(increment_global_step)
-            batch_imgs, batch_labels = sess.run(next_batch)
-
+            batch_imgs = sess.run(next_batch)
             batch_z = sess.run(z_batch_tensor)
 
             _, d_loss_sum_str = sess.run([d_train_opt, d_summ], feed_dict={
-                                         input_real: batch_imgs, input_z: batch_z, input_d_y: batch_labels, input_g_y: batch_labels})
+                                         input_real: batch_imgs, input_z: batch_z})
             writer.add_summary(d_loss_sum_str, steps)
 
             _, g_sum_str = sess.run([g_train_opt, g_summ], feed_dict={
-                input_real: batch_imgs, input_z: batch_z, input_d_y: batch_labels, input_g_y: batch_labels})
+                input_real: batch_imgs, input_z: batch_z})
             writer.add_summary(g_sum_str, steps)
 
             _, g_sum_str = sess.run([g_train_opt, g_summ], feed_dict={
-                input_real: batch_imgs, input_z: batch_z, input_d_y: batch_labels, input_g_y: batch_labels})
+                input_real: batch_imgs, input_z: batch_z})
 
             writer.add_summary(g_sum_str, steps)
-
+            
             if steps % WRITE_IMG_SUMMARY_EVERY == 0:
                 writer.add_summary(sess.run(g_imgs, feed_dict={
-                                   input_z: batch_z, input_d_y: batch_labels, input_g_y: batch_labels}), steps)
+                                   input_z: batch_z}), steps)
+                writer.add_summary(sess.run(real_imgs, feed_dict={
+                                   input_real: batch_imgs}), steps)
 
             if steps % SAVE_MODEL_EVERY == 0:
                 saver.save(sess, BASE_PATH + CHKPTS_PATH +
                            "model", global_step=steps)
             if steps % PRINT_INFO_EVERY == 0:
                 train_loss_d, train_loss_g = sess.run([d_loss, g_loss], feed_dict={
-                                                      input_real: batch_imgs, input_z: batch_z, input_d_y: batch_labels, input_g_y: batch_labels})
+                                                      input_real: batch_imgs, input_z: batch_z})
 
                 print("Step {} de {}".format(steps % int(dataset_len/BATCH_SIZE)+1, int(dataset_len/BATCH_SIZE)+1),
                       "-- Epoch [{} de {}]".format(int(steps *
@@ -197,7 +200,7 @@ def train(sess, saver, z_batch_tensor, increment_global_step, dataset_len, itera
                       "-- Generator Loss: {:.4f}".format(train_loss_g))
             if steps % SAVE_EXAMPLE_EVERY == 0:
                 #output.save_mosaic_output(sess, z_batch_tensor, input_z, input_d_y, input_g_y, steps)                
-                output.save_output(sess, z_batch_tensor, input_z, input_g_y, batch_labels, steps, 3)
+                output.save_output(sess, z_batch_tensor, input_z, steps, 3)
             gc.collect()
         except tf.errors.OutOfRangeError:
             print("End")
