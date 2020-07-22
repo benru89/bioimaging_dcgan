@@ -120,11 +120,6 @@ def get_session(batch_size, checkpoint_path=None):
       Returns an open tf session from last valid checkpoint. Useful to use a saved trained model.
       ie. use this function in a Jupyter notebook to create a session.
     """
-    # Dataset
-    dataset, dataset_len = data.create_dataset(
-        BASE_PATH + DATA_PATH, BATCH_SIZE, NUM_EPOCHS)
-    iterator = dataset.make_initializable_iterator()
- 
     # Model
     input_real, input_z = model.model_inputs(
         DIM_X, DIM_Y, DIM_Z, Z_NOISE_DIM, Y_DIM)
