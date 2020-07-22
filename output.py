@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dcgan_alt import sampler
 from constants import DIM_X, DIM_Y, DIM_Z, BASE_PATH, OUTPUT_PATH, BATCH_SIZE, FULL_OUTPUT_PATH,Y_DIM
-from PIL import Image
+from PIL import Image, ImageEnhance
 import tensorflow as tf
 
 
@@ -28,23 +28,22 @@ def save_images(imgs_batch, curr_batch=1, stepcount=None, name_prefix=None):
         elif name_prefix:
             filepath += str(name_prefix)
         filepath += "_" + str(curr_batch) + "_" + str(i) + ".jpg"
-       
         output_image = Image.fromarray(transform_image(
             image_from_array(image)).astype(np.uint8))
+        output_image = ImageEnhance.Brightness(output_image).enhance(3)
+        output_image = ImageEnhance.Contrast(output_image).enhance(0.8)
         output_image.save(filepath)
 
 
-def save_tensors(z_batch, labels=None, curr_batch=1, stepcount=None, name_prefix=None):
+def save_tensors(z_batch, curr_batch=1, stepcount=None, name_prefix=None):
     for i, ex in enumerate(z_batch):
         filepath = FULL_OUTPUT_PATH
         if stepcount:
             filepath += str(stepcount)
         elif name_prefix:
             filepath += str(name_prefix)
-        filepath += "_" + str(curr_batch) + "_" + str(i) + "_"
-       
-        
-        
+        filepath += "_" + str(curr_batch) + "_" + str(i) + '.txt'
+        np.savetxt(filepath, ex, fmt='%1.25f')
 
 
 def save_mosaic_output(sess, z_batch_tensor, input_z, input_g_y, labels, steps, save_tensor=False):
@@ -98,4 +97,5 @@ def generate_samples(sess, z_batch_tensor, input_z, num_samples, save_tensor=Fal
                        feed_dict={input_z: example_z})
         imgs = [img[:, :, :] for img in samples]
         save_images(imgs, batch_count, name_prefix=name_prefix)
-       
+        if save_tensor:
+            save_tensors(example_z, batch_count, name_prefix=name_prefix)

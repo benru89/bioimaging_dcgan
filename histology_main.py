@@ -115,7 +115,7 @@ def run():
                   d_loss, g_loss, d_train_opt, g_train_opt)
 
 
-def get_session(batch_size):
+def get_session(batch_size, checkpoint_path=None):
     """
       Returns an open tf session from last valid checkpoint. Useful to use a saved trained model.
       ie. use this function in a Jupyter notebook to create a session.
@@ -126,7 +126,7 @@ def get_session(batch_size):
     iterator = dataset.make_initializable_iterator()
  
     # Model
-    input_real, input_z, input_d_y, input_g_y = model.model_inputs(
+    input_real, input_z = model.model_inputs(
         DIM_X, DIM_Y, DIM_Z, Z_NOISE_DIM, Y_DIM)
     dcgan.generator(input_z)
     global_step = tf.Variable(0, trainable=False, name='global_step')
@@ -136,15 +136,17 @@ def get_session(batch_size):
     sess.run(tf.global_variables_initializer())
 
     try:
-        saver.restore(sess, tf.train.latest_checkpoint(
-            BASE_PATH + CHKPTS_PATH))
+        if (checkpoint_path is None):
+            path = BASE_PATH + CHKPTS_PATH
+        else:
+            path = checkpoint_path
+        saver.restore(sess, tf.train.latest_checkpoint(path))
         last_global_step = sess.run(global_step)
         print(last_global_step)
     except ValueError:
         print("Error loading checkpoint, no valid checkpoint found")
 
-    return sess, input_real, input_z, input_g_y
-
+    return sess, input_real, input_z
 
 def close_session(sess):
     sess.close()

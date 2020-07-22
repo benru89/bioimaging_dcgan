@@ -12,3 +12,4 @@ test_images/histo_l1/operations/*
 evaluation/trained_models/*
 .ipynb_checkpoints
 ./.vscode/
+.vscode/settings.json

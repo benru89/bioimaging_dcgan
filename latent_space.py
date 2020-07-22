@@ -50,16 +50,13 @@ def search(sess, tensor, labels_one_hot,decay_steps,save_tensor=False):
     zp_val = sess.run(zp)
     return zp, zp_val
   
-def interpolate(sess, tensor_a, tensor_b, labels, steps=50, prefix=None):
+def interpolate(sess, tensor_a, tensor_b, steps=50, prefix=None):
     z = np.empty(shape=(steps, Z_NOISE_DIM))
     for i, alpha in enumerate(np.linspace(start=0.0, stop=1.0, num=steps)):
         z[i] = (1-alpha) * tensor_a + alpha * tensor_b
 
     z_ = tf.placeholder(tf.float32, [steps, Z_NOISE_DIM])
-    g_labels = tf.placeholder(tf.float32, [None, Y_DIM])
-    labels = [labels[0]] * int(steps/2) + [labels[1]] * int(steps/2)
-    labels = np.eye(2)[labels]
-    samples = sess.run(sampler(z_,g_labels, steps), feed_dict={z_: z, g_labels:labels})
+    samples = sess.run(sampler(z_, steps), feed_dict={z_: z})
     imgs = [img[:, :, :] for img in samples]
     for i, image in enumerate(imgs):
         filepath = FULL_OUTPUT_PATH + 'interp_'
